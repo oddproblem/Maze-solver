@@ -1,5 +1,5 @@
 // server/server.js
-
+const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,15 +9,12 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // --- Middleware ---
-// Enable Cross-Origin Resource Sharing to allow our React app to communicate with the server
 app.use(cors());
-// Enable express to parse JSON bodies in POST/PUT requests
 app.use(express.json());
+app.use(express.static(path.join(__dirname, '../client/build')));
 
 // --- MongoDB Connection ---
-// IMPORTANT: Replace this with your actual MongoDB connection string.
-// You can get a free one from MongoDB Atlas.
-const MONGO_URI = 'mongodb://localhost:27017/maze-solver';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/maze-solver';
 
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
@@ -27,7 +24,6 @@ mongoose.connect(MONGO_URI, {
 .catch(err => console.error('MongoDB connection error:', err));
 
 // --- Mongoose Schema & Model ---
-// This defines the structure of the maze data we will store in MongoDB.
 const MazeSchema = new mongoose.Schema({
   _id: {
     type: String,
@@ -59,30 +55,22 @@ const Maze = mongoose.model('Maze', MazeSchema);
 
 // --- API Routes ---
 
-/**
- * @route   POST /api/mazes
- * @desc    Save a new maze configuration to the database
- * @access  Public
- */
+// POST /api/mazes - Save a new maze
 app.post('/api/mazes', async (req, res) => {
   try {
     const { gridSize, startNode, endNode, walls } = req.body;
 
-    // Basic validation
-    if (!gridSize || !startNode || !endNode || !walls) {
-      return res.status(400).json({ msg: 'Please provide all required maze data.' });
+    if (
+      typeof gridSize !== 'number' ||
+      !startNode || typeof startNode.row !== 'number' || typeof startNode.col !== 'number' ||
+      !endNode || typeof endNode.row !== 'number' || typeof endNode.col !== 'number' ||
+      !Array.isArray(walls)
+    ) {
+      return res.status(400).json({ msg: 'Invalid maze data.' });
     }
 
-    const newMaze = new Maze({
-      gridSize,
-      startNode,
-      endNode,
-      walls,
-    });
-
+    const newMaze = new Maze({ gridSize, startNode, endNode, walls });
     const savedMaze = await newMaze.save();
-    
-    // Respond with the saved maze data, including its unique ID
     res.status(201).json(savedMaze);
 
   } catch (err) {
@@ -91,31 +79,28 @@ app.post('/api/mazes', async (req, res) => {
   }
 });
 
-/**
- * @route   GET /api/mazes/:id
- * @desc    Retrieve a saved maze by its unique ID
- * @access  Public
- */
+// GET /api/mazes/:id - Retrieve a maze by ID
 app.get('/api/mazes/:id', async (req, res) => {
   try {
     const maze = await Maze.findById(req.params.id);
-
     if (!maze) {
       return res.status(404).json({ msg: 'Maze not found with this ID.' });
     }
-
     res.json(maze);
-
   } catch (err) {
     console.error('Error fetching maze:', err);
-    // Handle cases where the ID format is invalid for MongoDB
-    if (err.kind === 'ObjectId' || err.name === 'CastError') {
-        return res.status(404).json({ msg: 'Maze not found with this ID.' });
+    if (err.name === 'CastError') {
+      return res.status(404).json({ msg: 'Invalid maze ID format.' });
     }
     res.status(500).json({ error: 'Server error while fetching maze.' });
   }
 });
 
+// --- Fallback Route (Regex version) ---
+// This serves index.html for all non-API routes
+app.get(/^(?!\/api\/).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build/index.html'));
+});
 
 // --- Start Server ---
 app.listen(PORT, () => {
