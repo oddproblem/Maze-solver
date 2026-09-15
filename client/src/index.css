@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-zinc-900 text-zinc-100 antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+}
+
+/* Crisp, Non-Gimmicky Node Animations */
+@keyframes visitedSimple {
+  0% {
+    transform: scale(0.6);
+    background-color: #60a5fa;
+  }
+  100% {
+    transform: scale(1);
+    background-color: #2563eb;
+  }
+}
+
+@keyframes visitedSimpleRace {
+  0% {
+    transform: scale(0.6);
+    background-color: #c084fc;
+  }
+  100% {
+    transform: scale(1);
+    background-color: #9333ea;
+  }
+}
+
+@keyframes pathSimple {
+  0% {
+    transform: scale(0.7);
+    background-color: #fde047;
+  }
+  100% {
+    transform: scale(1);
+    background-color: #eab308;
+  }
+}
+
+.node-visited-anim {
+  animation: visitedSimple 0.25s ease-out forwards;
+}
+
+.node-visited-race-anim {
+  animation: visitedSimpleRace 0.25s ease-out forwards;
+}
+
+.node-path-anim {
+  animation: pathSimple 0.25s ease-out forwards;
+}
+
+/* Clean Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #18181b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
