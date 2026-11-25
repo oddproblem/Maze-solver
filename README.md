@@ -132,3 +132,16 @@ Build Command: npm install && npm run build --prefix server
 Start Command: npm start --prefix server
 
 For a successful deployment, a MONGO_URI environment variable pointing to a cloud-hosted MongoDB Atlas instance must be set in the Render dashboard.
+
+Benchmark
+A seeded, reproducible benchmark of all 5 algorithms across the 4 maze generators lives in `scripts/benchmark.mjs`:
+
+npm run benchmark
+
+It writes `benchmarks/results.json` and `benchmarks/RESULTS.md` (full tables). It exits non-zero if BFS, Dijkstra and A* ever disagree on shortest-path length. Last run: 0 disagreements across 847 solvable mazes. Headline numbers (200 seeded mazes per generator and size, Node 24, i5-13500H):
+
+- A* expands 77.0% fewer nodes than BFS on 51x51 random-obstacle grids (418.7 vs 1824.2) and 74.8% fewer on 25x25, with a 100% optimal path rate.
+- Greedy Best-First expands the fewest nodes (91.7% fewer than BFS at 51x51) but found the optimal path in 0% of those mazes, with paths 19.1% longer on average.
+- On perfect mazes (Recursive Backtracker), A* saves only 8.7–14.4% over BFS: with a single route to the exit, the heuristic has little to prune.
+- Dijkstra used to re-sort every cell on every step (33.9 ms median on 51x51 random grids, 90–350x slower than BFS). Replacing that with a binary-heap priority queue made it 89x faster there (33.9 → 0.38 ms) and 181–208x faster on the other 51x51 maze types, with identical shortest paths. It is now within 1.5–2.5x of BFS; the remaining gap is heap overhead. Before and after tables: `benchmarks/RESULTS_before_heap.md` and `benchmarks/RESULTS.md`.
+- A* used to re-sort its open set on every pop, which made it about 2.5x slower than BFS even though it expanded 77% fewer nodes. On the same heap, it is 5.1x faster on 51x51 random grids (0.397 → 0.078 ms median, p95 2.0 → 0.30 ms) and now beats BFS outright there (0.078 vs 0.138 ms). It expands exactly the same nodes as before. On perfect mazes (Recursive Backtracker), A* is still about 1.5x slower than BFS: it prunes only 9–14% of nodes, so the heap overhead outweighs the savings.

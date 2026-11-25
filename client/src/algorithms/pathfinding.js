@@ -46,6 +46,61 @@ function reconstructPath(endNode) {
   return path;
 }
 
+// Binary min-heap keyed on (priority, tie, insertion order). `tie` is an
+// optional secondary key (A* passes h to prefer nodes closer to the target);
+// the insertion counter then breaks remaining ties first-in-first-out, so
+// equal-cost nodes come out in a stable, deterministic order.
+// push and pop are O(log n).
+class MinHeap {
+  constructor() {
+    this.items = [];
+    this.counter = 0;
+  }
+
+  get size() {
+    return this.items.length;
+  }
+
+  push(node, priority, tie = 0) {
+    const items = this.items;
+    items.push({ node, priority, tie, order: this.counter++ });
+    let i = items.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (!this.less(items[i], items[parent])) break;
+      [items[i], items[parent]] = [items[parent], items[i]];
+      i = parent;
+    }
+  }
+
+  pop() {
+    const items = this.items;
+    const top = items[0];
+    const last = items.pop();
+    if (items.length > 0) {
+      items[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        const r = l + 1;
+        let smallest = i;
+        if (l < items.length && this.less(items[l], items[smallest])) smallest = l;
+        if (r < items.length && this.less(items[r], items[smallest])) smallest = r;
+        if (smallest === i) break;
+        [items[i], items[smallest]] = [items[smallest], items[i]];
+        i = smallest;
+      }
+    }
+    return top;
+  }
+
+  less(a, b) {
+    if (a.priority !== b.priority) return a.priority < b.priority;
+    if (a.tie !== b.tie) return a.tie < b.tie;
+    return a.order < b.order;
+  }
+}
+
 // 1. Breadth-First Search (BFS) - Guaranteed Shortest Path (unweighted)
 export function bfs(grid, startNode, endNode) {
   const visitedNodesInOrder = [];
@@ -111,25 +166,19 @@ export function dfs(grid, startNode, endNode) {
 }
 
 // 3. Dijkstra's Algorithm - Classic weighted shortest path
+// Uses a binary-heap priority queue (O((V + E) log V)) instead of re-sorting
+// every cell on every step. Nodes are pushed again when their distance
+// improves; stale heap entries are skipped when popped (lazy deletion).
 export function dijkstra(grid, startNode, endNode) {
   const visitedNodesInOrder = [];
   startNode.distance = 0;
-  const unvisitedNodes = [];
+  const heap = new MinHeap();
+  heap.push(startNode, 0);
 
-  for (const row of grid) {
-    for (const node of row) {
-      unvisitedNodes.push(node);
-    }
-  }
+  while (heap.size > 0) {
+    const { node: closestNode, priority } = heap.pop();
 
-  while (unvisitedNodes.length > 0) {
-    unvisitedNodes.sort((a, b) => a.distance - b.distance);
-    const closestNode = unvisitedNodes.shift();
-
-    if (closestNode.isWall) continue;
-    if (closestNode.distance === Infinity) {
-      return { visitedNodesInOrder, shortestPathNodes: [] };
-    }
+    if (closestNode.isVisited || priority > closestNode.distance) continue;
 
     closestNode.isVisited = true;
     visitedNodesInOrder.push(closestNode);
@@ -147,6 +196,7 @@ export function dijkstra(grid, startNode, endNode) {
       if (alt < neighbor.distance) {
         neighbor.distance = alt;
         neighbor.previousNode = closestNode;
+        heap.push(neighbor, alt);
       }
     }
   }
@@ -155,16 +205,21 @@ export function dijkstra(grid, startNode, endNode) {
 }
 
 // 4. A* Search (A-Star) - Heuristic Informed (f = g + h)
+// The open set is a binary heap ordered by f, then h (same order as before),
+// instead of an array re-sorted on every pop with an O(n) includes() check.
+// A node is pushed again when its g improves; stale entries are skipped.
 export function aStar(grid, startNode, endNode) {
   const visitedNodesInOrder = [];
-  const openSet = [startNode];
+  const openSet = new MinHeap();
   startNode.g = 0;
   startNode.h = heuristic(startNode, endNode);
   startNode.f = startNode.h;
+  openSet.push(startNode, startNode.f, startNode.h);
 
-  while (openSet.length > 0) {
-    openSet.sort((a, b) => a.f - b.f || a.h - b.h);
-    const current = openSet.shift();
+  while (openSet.size > 0) {
+    const { node: current, priority } = openSet.pop();
+
+    if (current.isVisited || priority > current.f) continue;
 
     current.isVisited = true;
     visitedNodesInOrder.push(current);
@@ -184,9 +239,7 @@ export function aStar(grid, startNode, endNode) {
         neighbor.g = tentativeG;
         neighbor.h = heuristic(neighbor, endNode);
         neighbor.f = neighbor.g + neighbor.h;
-        if (!openSet.includes(neighbor)) {
-          openSet.push(neighbor);
-        }
+        openSet.push(neighbor, neighbor.f, neighbor.h);
       }
     }
   }
